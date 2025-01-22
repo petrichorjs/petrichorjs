@@ -7,6 +7,7 @@ import {
     BodyParser,
     BodyParserContentType,
     ParsedJsonBody,
+    ParsedMultipartBodyEntries,
     ParsedTextBody,
 } from "./bodyParser.js";
 import { Cookies } from "./cookies.js";
@@ -54,6 +55,11 @@ export class NodeRequest<
         this.requestedPath = request.url || "";
     }
 
+    /** @internal */
+    cleanup(): void {
+        this.bodyParser.cleanup();
+    }
+
     private getCookieHeaderValue(): string | undefined {
         return this.headers["Cookie"] || this.headers["cookie"];
     }
@@ -84,6 +90,14 @@ export class NodeRequest<
         }
 
         return await this.body();
+    }
+
+    override async multipartEntries(): Promise<ParsedMultipartBodyEntries> {
+        if (this.bodyParser.contentType !== BodyParserContentType.Multipart) {
+            throw this.createInvalidContentTypeError();
+        }
+
+        return (await this.body()) as ParsedMultipartBodyEntries;
     }
 
     get requestBodyEnded(): boolean {

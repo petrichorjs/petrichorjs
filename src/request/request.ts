@@ -5,7 +5,12 @@ import { Method } from "../router/router.js";
 import { ParsedParsers } from "../types/parser.js";
 import { Path } from "../types/path.js";
 import { Validators } from "../validate.js";
-import { ParsedJsonBody, ParsedTextBody } from "./bodyParser.js";
+import {
+    ParsedJsonBody,
+    ParsedMultipartBody,
+    ParsedMultipartBodyEntries,
+    ParsedTextBody,
+} from "./bodyParser.js";
 import { Cookies } from "./cookies.js";
 import { QueryParams } from "./queryParams.js";
 
@@ -125,6 +130,21 @@ export abstract class Request<
      *     const body = await request.json();
      */
     abstract json(): Promise<ParsedJsonBody>;
+
+    /**
+     * Experimental, WILL change for the better (hopefully). This is just a
+     * demo.
+     *
+     * @depricated
+     */
+    async multipart(): Promise<ParsedMultipartBody> {
+        const data: ParsedMultipartBody = new Map(
+            await this.multipartEntries()
+        );
+        return data;
+    }
+
+    abstract multipartEntries(): Promise<ParsedMultipartBodyEntries>;
 
     protected createInvalidContentTypeError(): HttpError {
         return new HttpError(

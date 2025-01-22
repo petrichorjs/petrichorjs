@@ -74,6 +74,7 @@ export abstract class Server {
         response: Response<Path | null, Method[] | unknown>,
         route: Route | undefined
     ): Promise<void> {
+        console.log("got request 1");
         const context: MiddlewareContext = {
             request: request,
             response: response,

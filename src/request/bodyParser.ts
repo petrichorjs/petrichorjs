@@ -4,6 +4,7 @@ import { statusCodes } from "../response/statusCode.js";
 export enum BodyParserContentType {
     Text,
     Json,
+    Multipart,
 }
 
 /** The options for body parsers */
@@ -19,12 +20,35 @@ export type BodyParserOptions = {
         encoding: BufferEncoding;
         convertEmptyStringsToNull: boolean;
     };
+    multipart: {
+        limit: number;
+        contentTypes: Set<string>;
+        encoding: BufferEncoding;
+        convertEmptyStringsToNull: boolean;
+        maxFileSize: number;
+    };
 };
 
 type ContentTypeOptions = BodyParserOptions[keyof BodyParserOptions];
 
 export type ParsedTextBody = string;
 export type ParsedJsonBody = unknown;
+export type ParsedMultipartValue =
+    | {
+          isFile: false;
+          headers: Map<string, string>;
+          value: string;
+      }
+    | {
+          isFile: true;
+          headers: Map<string, string>;
+          filename: string;
+          mediaType: string;
+          size: number;
+          localFilePath: string;
+      };
+export type ParsedMultipartBody = Map<string, ParsedMultipartValue>;
+export type ParsedMultipartBodyEntries = [string, ParsedMultipartValue][];
 
 export type ParsedRequestBody = ParsedTextBody | ParsedJsonBody;
 
@@ -33,18 +57,28 @@ export function defaultBodyParserOptions(
 ): BodyParserOptions {
     return {
         text: {
-            limit: options.text?.limit || 1000000,
+            limit: options.text?.limit || 1000000, // 1 MB
             contentTypes:
                 options.text?.contentTypes ||
                 new Set(["text/plain", "text/html"]),
-            encoding: "utf-8",
+            encoding: options.text?.encoding || "utf-8",
         },
         json: {
-            limit: options.json?.limit || 1000000,
+            limit: options.json?.limit || 1000000, // 1 MB
             contentTypes:
                 options.json?.contentTypes || new Set(["application/json"]),
-            encoding: "utf-8",
-            convertEmptyStringsToNull: true,
+            encoding: options.json?.encoding || "utf-8",
+            convertEmptyStringsToNull:
+                options.json?.convertEmptyStringsToNull || true,
+        },
+        multipart: {
+            limit: options.json?.limit || 10000000, // 10 MB
+            contentTypes:
+                options.json?.contentTypes || new Set(["multipart/form-data"]),
+            encoding: options.multipart?.encoding || "utf-8",
+            convertEmptyStringsToNull:
+                options.multipart?.convertEmptyStringsToNull || true,
+            maxFileSize: options.multipart?.maxFileSize || 5000000, // 5 MB
         },
     };
 }
@@ -67,8 +101,12 @@ export abstract class BodyParser {
         this.contentTypeOptions = this.getContentTypeOptions();
     }
 
+    /** @internal */
+    abstract cleanup(): void;
+
     protected abstract handleTextRequest(): Promise<ParsedTextBody>;
     protected abstract handleJsonRequest(): Promise<ParsedJsonBody>;
+    protected abstract handleMultipartRequest(): Promise<ParsedMultipartBodyEntries>;
 
     async body(): Promise<ParsedRequestBody> {
         if (this.parsedBody) return this.parsedBody;
@@ -80,18 +118,27 @@ export abstract class BodyParser {
             case BodyParserContentType.Json:
                 this.parsedBody = await this.handleJsonRequest();
                 break;
+            case BodyParserContentType.Multipart:
+                this.parsedBody = await this.handleMultipartRequest();
+                break;
         }
 
         return this.parsedBody;
     }
 
     protected getRequestContentType(
-        contentType: string | undefined
+        contentTypeHeader: string | undefined
     ): BodyParserContentType {
+        if (!contentTypeHeader) return BodyParserContentType.Text;
+
+        const contentTypeHeaderParts = contentTypeHeader.split(";");
+        const contentType = contentTypeHeaderParts[0];
         if (!contentType) return BodyParserContentType.Text;
 
         if (this.options.json.contentTypes.has(contentType)) {
             return BodyParserContentType.Json;
+        } else if (this.options.multipart.contentTypes.has(contentType)) {
+            return BodyParserContentType.Multipart;
         }
 
         return BodyParserContentType.Text;
@@ -103,6 +150,8 @@ export abstract class BodyParser {
                 return this.options.text;
             case BodyParserContentType.Json:
                 return this.options.json;
+            case BodyParserContentType.Multipart:
+                return this.options.multipart;
         }
     }
 
@@ -124,6 +173,13 @@ export abstract class BodyParser {
         return new HttpError(
             statusCodes.UnprocessableContent,
             "The body is too large!"
+        );
+    }
+
+    protected createInvalidMultipart(): HttpError {
+        return new HttpError(
+            statusCodes.UnprocessableContent,
+            "Invalid multipart body!"
         );
     }
 }

@@ -4,9 +4,14 @@ import {
     BodyParser,
     BodyParserOptions,
     ParsedJsonBody,
+    ParsedMultipartBodyEntries,
     ParsedTextBody,
 } from "./bodyParser.js";
 import http from "node:http";
+import { MultipartParseError } from "@mjackson/multipart-parser";
+import { parseMultipartRequest } from "@mjackson/multipart-parser/node";
+import { FileResult, fileSync } from "tmp";
+import { createWriteStream } from "node:fs";
 
 function getHeader(
     headers: http.IncomingHttpHeaders,
@@ -23,6 +28,8 @@ function getHeader(
 export class NodeBodyParser extends BodyParser {
     private readonly request: http.IncomingMessage;
 
+    private readonly temporaryFiles: FileResult[] = [];
+
     constructor(request: http.IncomingMessage, options: BodyParserOptions) {
         super(
             options,
@@ -31,6 +38,12 @@ export class NodeBodyParser extends BodyParser {
         );
 
         this.request = request;
+    }
+
+    override cleanup(): void {
+        for (const file of this.temporaryFiles) {
+            file.removeCallback();
+        }
     }
 
     private getExpectedContentLength(): number {
@@ -146,6 +159,62 @@ export class NodeBodyParser extends BodyParser {
         if (parsed === "") return null;
 
         return parsed;
+    }
+
+    protected override async handleMultipartRequest(): Promise<ParsedMultipartBodyEntries> {
+        const data: ParsedMultipartBodyEntries = [];
+
+        try {
+            for await (const part of parseMultipartRequest(this.request)) {
+                if (!part.name) throw this.createInvalidMultipart();
+
+                if (!part.isFile) {
+                    data.push([
+                        part.name,
+                        {
+                            isFile: false,
+                            headers: new Map(part.headers.entries()),
+                            value: await part.text(),
+                        },
+                    ]);
+                } else {
+                    if (!part.filename || !part.mediaType)
+                        throw this.createInvalidMultipart();
+
+                    const file = fileSync();
+                    const fileStream = createWriteStream(file.name);
+
+                    let bytesWritten = 0;
+
+                    for await (const chunk of part.body) {
+                        fileStream.write(chunk);
+                        bytesWritten += chunk.byteLength;
+                    }
+
+                    fileStream.end();
+
+                    data.push([
+                        part.name,
+                        {
+                            isFile: true,
+                            headers: new Map(part.headers.entries()),
+                            filename: part.filename,
+                            mediaType: part.mediaType,
+                            size: bytesWritten,
+                            localFilePath: file.name,
+                        },
+                    ]);
+                }
+            }
+        } catch (err) {
+            if (err instanceof MultipartParseError) {
+                throw this.createInvalidMultipart();
+            }
+
+            throw err;
+        }
+
+        return data;
     }
 }
 

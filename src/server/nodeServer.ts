@@ -19,6 +19,8 @@ export class NodeServer extends Server {
             this.transformAndHandle(request, response)
         );
 
+        console.log("Listening");
+
         return server.listen(this.port, this.host) as never;
     }
 
@@ -30,6 +32,7 @@ export class NodeServer extends Server {
         request: http.IncomingMessage,
         response: http.ServerResponse
     ): Promise<void> {
+        console.log("now got request");
         if (!request.url || !request.method) {
             response.end();
 
@@ -59,6 +62,8 @@ export class NodeServer extends Server {
         const parsedResponse = new NodeResponse(response);
 
         await this.handleRequest(parsedRequest, parsedResponse, route);
+
+        parsedRequest.cleanup();
     }
 }
 
