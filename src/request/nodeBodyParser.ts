@@ -189,7 +189,16 @@ export class NodeBodyParser extends BodyParser {
                     for await (const chunk of part.body) {
                         fileStream.write(chunk);
                         bytesWritten += chunk.byteLength;
+
+                        if (bytesWritten > this.options.multipart.maxFileSize) {
+                            fileStream.close();
+                            file.removeCallback();
+
+                            throw this.createBodyTooBigError();
+                        }
                     }
+
+                    this.temporaryFiles.push(file);
 
                     fileStream.end();
 

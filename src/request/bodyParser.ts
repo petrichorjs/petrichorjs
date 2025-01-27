@@ -24,7 +24,6 @@ export type BodyParserOptions = {
         limit: number;
         contentTypes: Set<string>;
         encoding: BufferEncoding;
-        convertEmptyStringsToNull: boolean;
         maxFileSize: number;
     };
 };
@@ -76,8 +75,6 @@ export function defaultBodyParserOptions(
             contentTypes:
                 options.json?.contentTypes || new Set(["multipart/form-data"]),
             encoding: options.multipart?.encoding || "utf-8",
-            convertEmptyStringsToNull:
-                options.multipart?.convertEmptyStringsToNull || true,
             maxFileSize: options.multipart?.maxFileSize || 5000000, // 5 MB
         },
     };

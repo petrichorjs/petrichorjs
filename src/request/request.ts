@@ -132,10 +132,14 @@ export abstract class Request<
     abstract json(): Promise<ParsedJsonBody>;
 
     /**
-     * Experimental, WILL change for the better (hopefully). This is just a
-     * demo.
+     * Awaits and parses the request body, like {@link Request.body}, but in this
+     * case it also checks that the content type is the correct type. The files
+     * passed in the request are stored in a temporary folder, the file paths
+     * are then returned. Unlike {@link Request.multipartEntries} this one
+     * returns all the data in a map format.
      *
-     * @depricated
+     * @example
+     *     const body = await request.multipart();
      */
     async multipart(): Promise<ParsedMultipartBody> {
         const data: ParsedMultipartBody = new Map(
@@ -144,6 +148,10 @@ export abstract class Request<
         return data;
     }
 
+    /**
+     * Same as {@link Request.multipart}, but this one doesn't remove duplicate
+     * entries because it's returned as an array.
+     */
     abstract multipartEntries(): Promise<ParsedMultipartBodyEntries>;
 
     protected createInvalidContentTypeError(): HttpError {
