@@ -3,7 +3,11 @@ import { PathParams } from "./pathParams.js";
 
 export type ParsedParams = Record<string, unknown>;
 
-export type ParseParamFunction<T> = (param: T) => unknown;
+export type ParseParamFunction<T> = (
+    param: T,
+    unparseable: typeof unparseableParam
+) => unknown;
+
 export type ParseParamFunctions<
     P extends Path,
     AlreadyParsed extends ParsedParams,
@@ -19,4 +23,14 @@ export type ParseParamFunctionsToParsedParams<
         ? ReturnType<Functions[K]>
         : undefined;
 };
+
+export class UnparseableParamError extends Error {
+    constructor() {
+        super("Unparseable param");
+    }
+}
+
+export function unparseableParam(): never {
+    throw new UnparseableParamError();
+}
 

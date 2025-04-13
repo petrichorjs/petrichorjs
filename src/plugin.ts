@@ -1,6 +1,12 @@
 import { Mix, Prettify } from "./common.js";
 import { LocalFunction, Locals } from "./locals.js";
-import { JoinValidators, Validated } from "./validation.js";
+import { Middleware, MiddlewareType } from "./routeGroup.js";
+import {
+    JoinValidators,
+    Validated,
+    Validators,
+    ValidatorsToValidated,
+} from "./validation.js";
 
 export type PluginContext<
     L extends Locals = Locals,
@@ -25,9 +31,11 @@ export type AddPluginContextLocals<
 
 export interface PluginValidators<Context extends PluginContext>
     extends PluginMiddleware<Context> {
-    validate<T extends Validated>(
+    validate<T extends Validators>(
         validators: T
-    ): PluginMiddleware<Prettify<AddPluginContextValidators<Context, T>>>;
+    ): PluginMiddleware<
+        Prettify<AddPluginContextValidators<Context, ValidatorsToValidated<T>>>
+    >;
 }
 
 export interface PluginMiddleware<Context extends PluginContext>
@@ -40,4 +48,26 @@ export interface PluginMiddleware<Context extends PluginContext>
 }
 
 export type Plugin<_Context extends PluginContext> = {};
+
+export class PluginBuilder<Context extends PluginContext>
+    implements PluginValidators<Context>
+{
+    validators: Partial<Validators> = {};
+    middleware: Middleware[] = [];
+
+    validate<T extends Validators>(validators: T) {
+        this.validators = validators;
+
+        return this;
+    }
+
+    before<T extends LocalFunction>(handler: T) {
+        this.middleware.push({
+            type: MiddlewareType.Local,
+            handler: handler,
+        });
+
+        return this;
+    }
+}
 

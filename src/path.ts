@@ -60,3 +60,13 @@ export type JoinPaths<A extends Path, B extends Path> = A extends "/"
         ? `/${Slug}${B}`
         : never;
 
+export function joinPaths<A extends Path, B extends Path>(
+    left: A,
+    right: B
+): JoinPaths<A, B> {
+    return (left + right) as JoinPaths<A, B>;
+}
+
+export function removeFirstSlug(path: Path): Path {
+    return `/${path.split("/").slice(2).join("/")}`;
+}

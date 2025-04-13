@@ -10,13 +10,16 @@ import {
     ParseParamFunctions,
     ParseParamFunctionsToParsedParams,
 } from "./parse.js";
-import { JoinPaths, Path } from "./path.js";
+import { joinPaths, JoinPaths, Path } from "./path.js";
 import { PathParams } from "./pathParams.js";
-import { Plugin, PluginContext } from "./plugin.js";
+import { Plugin, PluginBuilder, PluginContext } from "./plugin.js";
 import {
+    joinRouteValidators,
     JoinValidators,
+    RouteValidators,
     Validated,
     Validators,
+    validatorsToRouteValidators,
     ValidatorsToValidated,
 } from "./validation.js";
 
@@ -29,6 +32,15 @@ export type RouteHandler<
 > = (data: { request: any; response: any }) => any;
 
 export type Responses = Record<number, unknown>;
+
+export type Route = {
+    path: Path;
+    methods: Method[];
+    parsers: ParseParamFunctions<Path, ParsedParams>;
+    validators: RouteValidators;
+    middleware: Middleware[];
+    handler: RouteHandler<Methods, RouteContext>;
+};
 
 export type ChildRoute<
     P extends Path = Path,
@@ -141,7 +153,7 @@ export type Middleware =
       };
 
 export type Handler = {
-    path: string;
+    path: Path;
     method: Method;
     handler: RouteHandler<Method[], RouteContext>;
 };
@@ -240,21 +252,21 @@ type C = RouteGroupUse<B>;
 export class RouteGroupBuilder<Context extends RouteContext>
     implements RouteGroupUse<Context>
 {
-    #basePath: string;
+    #basePath: Path;
 
-    #plugins: Plugin<PluginContext>[] = [];
+    #plugins: PluginBuilder<PluginContext>[] = [];
     #parsers: ParseParamFunctions<Path, {}> = {};
     #validators: Partial<Validators> = {};
     #middleware: Middleware[] = [];
     #groups: RouteGroupBuilder<RouteContext>[] = [];
     #handlers: Handler[] = [];
 
-    constructor(basePath: string) {
+    constructor(basePath: Path) {
         this.#basePath = basePath;
     }
 
     use<T extends Plugin<PluginContext>>(plugin: T) {
-        this.#plugins.push(plugin);
+        this.#plugins.push(plugin as unknown as PluginBuilder<PluginContext>);
 
         return this as unknown as T extends Plugin<
             infer U extends PluginContext
@@ -317,6 +329,39 @@ export class RouteGroupBuilder<Context extends RouteContext>
         });
 
         return this;
+    }
+
+    getRoutes(): Route[] {
+        const routes: Route[] = [];
+
+        for (const group of this.#groups) {
+            const groupRoutes = group.getRoutes();
+
+            for (const route of groupRoutes) {
+                route.path = joinPaths(this.#basePath, route.path);
+                route.parsers = Object.assign({}, this.#parsers, route.parsers);
+                route.validators = joinRouteValidators(
+                    this.#validators,
+                    route.validators
+                );
+                route.middleware = [...this.#middleware, ...route.middleware];
+            }
+
+            routes.push(...groupRoutes);
+        }
+
+        for (const handler of this.#handlers) {
+            routes.push({
+                path: joinPaths(this.#basePath, handler.path),
+                methods: [handler.method],
+                parsers: this.#parsers,
+                validators: validatorsToRouteValidators(this.#validators),
+                middleware: this.#middleware,
+                handler: handler.handler,
+            });
+        }
+
+        return routes;
     }
 }
 
