@@ -3,7 +3,7 @@
  * params, validated body (+ other), responses)
  */
 
-import { JoinOrChoose, Mix, Prettify } from "./common.js";
+import { Mix, Prettify } from "./common.js";
 import { LocalFunction, Locals } from "./locals.js";
 import {
     ParsedParams,
@@ -11,7 +11,6 @@ import {
     ParseParamFunctionsToParsedParams,
 } from "./parse.js";
 import { joinPaths, JoinPaths, Path } from "./path.js";
-import { PathParams } from "./pathParams.js";
 import { Plugin, PluginBuilder, PluginContext } from "./plugin.js";
 import {
     joinRouteValidators,
@@ -239,9 +238,9 @@ export interface RouteGroupHandlers<Context extends RouteContext>
 export type RouteGroup<_Context extends RouteContext> = {};
 
 // type A = ParseParamFunctionsToParsedParams<ParseParamFunctions<"/:a/:b", {}>>;
-type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
+// type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
 // type B2 = Partial<Prettify<ParseParamFunctions<B["path"], B["parsedParams"]>>>;
-type C = RouteGroupUse<B>;
+// type C = RouteGroupUse<B>;
 // type D = ParseParamFunctions<B["path"], B["parsedParams"]>;
 // type E = B["parsedParams"];
 

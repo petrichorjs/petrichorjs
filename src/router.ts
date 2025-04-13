@@ -35,7 +35,7 @@ export function splitPath(path: Path): SplitPath {
 }
 
 export abstract class Router {
-    abstract addRoute(routes: Route): void;
+    abstract addRoute(route: Route): void;
     abstract findRoute(method: Method, path: Path): RouterResponse;
 }
 
@@ -53,3 +53,4 @@ export function methodAlreadyAssignedRouterError(
         `A handler for the router path '${path}' and method '${method}' has already been assigned. There can only be one handler per method per path. `
     );
 }
+

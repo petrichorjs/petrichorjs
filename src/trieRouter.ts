@@ -557,7 +557,9 @@ export class TrieRouterRouteGroup {
 export class TrieRouter extends Router {
     #baseRouteGruop = new TrieRouterRouteGroup();
 
-    override addRoute(routes: Route): void {}
+    override addRoute(route: Route): void {
+        this.#baseRouteGruop.addRoute(route);
+    }
 
     override findRoute(method: Method, path: Path): RouterResponse {
         return this.#baseRouteGruop.findMatchingRoute(method, splitPath(path));
