@@ -4,6 +4,7 @@
         "rootDir": "./src",
         "outDir": "./dist",
         "stripInternal": true
-    }
+    },
+    "include": ["./src/**/*"]
 }
 

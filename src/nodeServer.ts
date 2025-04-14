@@ -1,10 +1,11 @@
-import { OnServerStartCallback, Server } from "./server.js";
+import { OnServerStartCallback, Server, ServerOptions } from "./server.js";
 import http from "node:http";
 import { Response } from "./response.js";
 import { NodeBodyParser } from "./nodeBodyParser.js";
 
 export class NodeServer extends Server {
     #server = http.createServer((req, res) => this.#handleRequest(req, res));
+    #options: ServerOptions | undefined;
 
     protected override startServer(
         port: number,
@@ -26,7 +27,8 @@ export class NodeServer extends Server {
         console.log(req.url, `http://${this.host!}:${this.port!}`);
         const url = new URL(requestUrl, `http://${this.host!}:${this.port!}`);
 
-        const bodyParser = new NodeBodyParser(req);
+        //
+        const bodyParser = new NodeBodyParser(req, this.#options!.bodyParser);
         const response = new Response();
 
         console.log("handeling req");

@@ -38,3 +38,8 @@ export function merge<T>(a: T[], b: T[], predicate = (a: T, b: T) => a === b) {
     return c;
 }
 
+export type RecursivePartial<T> = {
+    [P in keyof T]?: T[P] extends Record<any, unknown>
+        ? RecursivePartial<T[P]>
+        : T[P];
+};

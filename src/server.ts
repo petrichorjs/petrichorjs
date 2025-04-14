@@ -5,17 +5,36 @@ import { Request } from "./request.js";
 import { Response } from "./response.js";
 import { Method } from "./routeGroup.js";
 import { Path } from "./path.js";
-import { BodyParser } from "./bodyParser.js";
+import {
+    BodyParser,
+    BodyParserOptions,
+    defaultBodyParserOptions,
+} from "./bodyParser.js";
+import { RecursivePartial } from "./common.js";
+
+export type ServerOptions = {
+    bodyParser: BodyParserOptions;
+};
 
 export type OnServerStartCallback = () => void;
+
+export function defaultServerOptions(
+    options: RecursivePartial<ServerOptions> | undefined
+): ServerOptions {
+    return {
+        bodyParser: defaultBodyParserOptions(options?.bodyParser),
+    };
+}
 
 export abstract class Server {
     protected router: Router;
     protected port: number | undefined;
     protected host: string | undefined;
+    protected options: ServerOptions;
 
-    constructor(router: Router) {
+    constructor(router: Router, options: RecursivePartial<ServerOptions>) {
         this.router = router;
+        this.options = defaultServerOptions(options);
     }
 
     listen(port: number, host: string, callback?: OnServerStartCallback): void {
