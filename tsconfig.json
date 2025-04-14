@@ -5,6 +5,7 @@
         "outDir": "./dist",
         "stripInternal": true
     },
-    "include": ["./src/**/*"]
+    "include": ["./src/**/*"],
+    "exclude": ["./old/**/*"]
 }
 

@@ -54,15 +54,22 @@ export class Response<S extends StatusCode, B extends unknown> {
     }
 
     text(body: string): Record<S, string> {
-        // TODO: Set content type header
         this.sendingBody = body;
+        this.header("Content-Type", "text/plain");
+
+        return {} as Record<S, string>;
+    }
+
+    html(body: string): Record<S, string> {
+        this.sendingBody = body;
+        this.header("Content-Type", "text/html");
 
         return {} as Record<S, string>;
     }
 
     json<T>(body: T): Record<S, T> {
-        // TODO: Set content type header
         this.sendingBody = JSON.stringify(body);
+        this.header("Content-Type", "application/json");
 
         return {} as Record<S, T>;
     }

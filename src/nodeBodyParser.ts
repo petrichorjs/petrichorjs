@@ -105,18 +105,19 @@ export class NodeBodyParser extends BodyParser {
             bb.on("file", (name, file, info) => {
                 filesCount += 1;
                 if (filesCount > this.options.multipart.maxFileCount) {
-                    file.destroy();
-                    bb.destroy();
-
                     reject(this.createTooManyMultipartFileFieldsError());
                 } else if (
                     fieldsCount + filesCount >
                     this.options.multipart.maxTotalFieldsCount
                 ) {
-                    file.destroy();
-                    bb.destroy();
-
                     reject(this.createTooManyMultipartFieldsError());
+                } else if (
+                    this.options.multipart.fileTypes &&
+                    !this.options.multipart.fileTypes.includes(info.mimeType)
+                ) {
+                    reject(
+                        this.createInvalidMultipartFileTypeError(info.mimeType)
+                    );
                 }
 
                 const temporaryFile = new NodeTemporaryFile(
@@ -135,16 +136,10 @@ export class NodeBodyParser extends BodyParser {
                     totalSize += chunk.length;
 
                     if (fileSize > this.options.multipart.maxFileSize) {
-                        file.destroy();
-                        bb.destroy();
-
                         reject(this.createTooLargeMultipartFileError());
                     } else if (
                         totalSize > this.options.multipart.maxTotalFileSize
                     ) {
-                        file.destroy();
-                        bb.destroy();
-
                         reject(this.createRequestBodyTooLargeError());
                     }
 
@@ -162,8 +157,6 @@ export class NodeBodyParser extends BodyParser {
                     fieldsCount + filesCount >
                     this.options.multipart.maxTotalFieldsCount
                 ) {
-                    bb.destroy();
-
                     reject(this.createTooManyMultipartFieldsError());
                 }
 
@@ -171,8 +164,11 @@ export class NodeBodyParser extends BodyParser {
             });
 
             bb.on("close", () => {
+                console.log("DONE HERE");
                 resolve(qs.parse(formData as Record<string, string>));
             });
+
+            this.#request.pipe(bb);
         });
     }
 

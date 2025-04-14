@@ -38,7 +38,7 @@ export type BodyParserOptions = {
     };
     multipart: {
         contentTypes: string[];
-        /** The maximum total file size of all the files combined. */
+        /** The maximum total size of all the field values combined. */
         maxTotalFileSize: number;
         /** Allowed mime file types. `null` allows all file mime types. */
         fileTypes: string[] | null;
@@ -184,10 +184,31 @@ export abstract class BodyParser {
         );
     }
 
+    protected createTooLargeMultipartFieldError(): HttpError {
+        return new HttpError(
+            statusCodes.PayloadTooLarge,
+            "Too large multipart field"
+        );
+    }
+
     protected createRequestBodyTooLargeError(): HttpError {
         return new HttpError(
             statusCodes.PayloadTooLarge,
             "Request body is too large"
+        );
+    }
+
+    protected createInvalidMultipartError(): HttpError {
+        return new HttpError(
+            statusCodes.PayloadTooLarge,
+            "Invalid form multipart body"
+        );
+    }
+
+    protected createInvalidMultipartFileTypeError(got: string): HttpError {
+        return new HttpError(
+            statusCodes.UnsupportedMediaType,
+            `Invalid multipart form filed file type '${got}'`
         );
     }
 }

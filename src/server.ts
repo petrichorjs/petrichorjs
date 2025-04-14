@@ -32,7 +32,7 @@ export abstract class Server {
     protected host: string | undefined;
     protected options: ServerOptions;
 
-    constructor(router: Router, options: RecursivePartial<ServerOptions>) {
+    constructor(router: Router, options?: RecursivePartial<ServerOptions>) {
         this.router = router;
         this.options = defaultServerOptions(options);
     }
@@ -95,7 +95,7 @@ export abstract class Server {
 
             // TODO: Run middleware and local functions!
             // Handler should not return anything, other than for type inference.
-            handler.route.handler({
+            await handler.route.handler({
                 request: request,
                 response: response,
             });
@@ -105,6 +105,9 @@ export abstract class Server {
                     .headers(err.getHeaders())
                     .status(err.status)
                     .json(err.toJsonResponse());
+
+                bodyParser.cleanup();
+
                 return;
             }
 
@@ -112,6 +115,8 @@ export abstract class Server {
                 .status(statusCodes.InternalServerError)
                 .json({ message: "Internal server error" });
         }
+
+        bodyParser.cleanup();
     }
 
     protected abstract startServer(

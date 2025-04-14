@@ -17,9 +17,9 @@ export class Request<Context extends RouteContext, M extends Methods | null> {
     readonly query: Context["validated"]["query"];
     readonly cookies: Context["validated"]["cookies"];
 
-    // async body(): Promise<Context["validated"]["body"]> {
-    //     return await this.#bodyParser.parsedBody();
-    // }
+    async body(): Promise<Context["validated"]["body"]> {
+        return await this.#bodyParser.parsedBody();
+    }
 
     async text(): Promise<string> {
         return await this.#bodyParser.text();

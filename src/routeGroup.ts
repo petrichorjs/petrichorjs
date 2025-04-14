@@ -34,7 +34,7 @@ export type RouteHandler<
 > = (data: {
     request: Request<Context, M>;
     response: Response<StatusCode, unknown>;
-}) => Responses;
+}) => Promise<Responses> | Responses;
 
 // IDK
 export type GetRouteHandlerResponses<T extends RouteHandler<any, any>> =
@@ -366,7 +366,11 @@ export class RouteGroupBuilder<Context extends RouteContext>
         }
 
         for (const handler of this.#handlers) {
-            console.log(joinPaths(this.#basePath, handler.path), this.#basePath, handler.path);
+            console.log(
+                joinPaths(this.#basePath, handler.path),
+                this.#basePath,
+                handler.path
+            );
             routes.push({
                 path: joinPaths(this.#basePath, handler.path),
                 methods: handler.method === null ? null : [handler.method],

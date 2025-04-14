@@ -1,11 +1,12 @@
-import { OnServerStartCallback, Server, ServerOptions } from "./server.js";
+import { OnServerStartCallback, Server } from "./server.js";
 import http from "node:http";
 import { Response } from "./response.js";
 import { NodeBodyParser } from "./nodeBodyParser.js";
 
 export class NodeServer extends Server {
-    #server = http.createServer((req, res) => this.#handleRequest(req, res));
-    #options: ServerOptions | undefined;
+    #server = http.createServer(
+        async (req, res) => await this.#handleRequest(req, res)
+    );
 
     protected override startServer(
         port: number,
@@ -15,7 +16,10 @@ export class NodeServer extends Server {
         this.#server.listen(port, host, callback);
     }
 
-    #handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    async #handleRequest(
+        req: http.IncomingMessage,
+        res: http.ServerResponse
+    ): Promise<void> {
         const method = req.method?.toLowerCase();
         const requestUrl = req.url;
 
@@ -27,13 +31,14 @@ export class NodeServer extends Server {
         console.log(req.url, `http://${this.host!}:${this.port!}`);
         const url = new URL(requestUrl, `http://${this.host!}:${this.port!}`);
 
-        //
-        const bodyParser = new NodeBodyParser(req, this.#options!.bodyParser);
+        const bodyParser = new NodeBodyParser(req, this.options.bodyParser);
         const response = new Response();
+
+        res.on("close", () => console.log("CLOEDE REQUEST"));
 
         console.log("handeling req");
         // TODO: Update when i add validation
-        this.handleRequest(
+        await this.handleRequest(
             bodyParser,
             method,
             url,
