@@ -62,3 +62,4 @@ type DynamicOnlyOptionalPath<T extends Path> =
 export type PathParams<T extends Path> = T extends "/"
     ? {}
     : Mix<PathRecursive<T>>;
+

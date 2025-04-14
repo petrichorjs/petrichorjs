@@ -36,7 +36,8 @@ export type WildcardGroup = {
 };
 
 export class TrieRouterRouteGroup {
-    #handlers: Record<Method, Handler> = {};
+    #handlers: Record<Method, Route> = {};
+    #wildcardMethodHandler: Route | undefined = undefined;
     #staticGroups: Record<string, TrieRouterRouteGroup> = {};
     #dynamicParsedGroups: DynamicParsedGroup[] = [];
     #dynamicGroups: DynamicGroup[] = [];
@@ -137,15 +138,23 @@ export class TrieRouterRouteGroup {
         const slug = path[0];
 
         if (!slug) {
+            if (route.methods === null) {
+                if (this.#wildcardMethodHandler)
+                    throw methodAlreadyAssignedRouterError(
+                        route.path,
+                        undefined
+                    );
+
+                this.#wildcardMethodHandler = route;
+
+                return;
+            }
+
             for (const method of route.methods) {
                 if (this.#handlers[method])
                     throw methodAlreadyAssignedRouterError(route.path, method);
 
-                this.#handlers[method] = {
-                    handler: route.handler,
-                    method: method,
-                    path: route.path,
-                };
+                this.#handlers[method] = route;
             }
 
             return;
@@ -422,15 +431,30 @@ export class TrieRouterRouteGroup {
     }
 
     #findMatchingDirectHandler(method: Method): RouterResponse {
-        if (!Object.keys(this.#handlers).length)
+        if (!Object.keys(this.#handlers).length) {
+            if (this.#wildcardMethodHandler)
+                return {
+                    type: RouterResponseType.Found,
+                    route: this.#wildcardMethodHandler,
+                    params: {},
+                };
+
             return {
                 type: RouterResponseType.NotFound,
             };
+        }
 
         if (this.#handlers[method])
             return {
                 type: RouterResponseType.Found,
-                handler: this.#handlers[method],
+                route: this.#handlers[method],
+                params: {},
+            };
+
+        if (this.#wildcardMethodHandler)
+            return {
+                type: RouterResponseType.Found,
+                route: this.#wildcardMethodHandler,
                 params: {},
             };
 

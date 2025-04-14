@@ -1,7 +1,13 @@
+import { Prettify } from "./common.js";
 import { Path } from "./path.js";
 import { PathParams } from "./pathParams.js";
 
 export type ParsedParams = Record<string, unknown>;
+
+export type JoinParsedAndPathParams<
+    P extends Path,
+    T extends ParsedParams,
+> = Prettify<T & Omit<PathParams<P>, keyof T>>;
 
 export type ParseParamFunction<T> = (
     param: T,

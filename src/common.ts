@@ -21,3 +21,10 @@ export type JoinOrChoose<T, U> = T extends undefined
     : U extends undefined
       ? T
       : Mix<T & U>;
+
+export type UnionToIntersection<U> = (
+    U extends any ? (x: U) => void : never
+) extends (x: infer I) => void
+    ? I
+    : never;
+

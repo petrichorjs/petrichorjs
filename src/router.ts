@@ -15,7 +15,7 @@ export type RouterResponse =
 
 export type RouterFoundResponse = {
     type: RouterResponseType.Found;
-    handler: Handler;
+    route: Route;
     params: ParsedParams;
 };
 
@@ -47,10 +47,10 @@ export class RouterError extends Error {
 
 export function methodAlreadyAssignedRouterError(
     path: Path,
-    method: Method
+    method: Method | undefined
 ): RouterError {
     return new RouterError(
-        `A handler for the router path '${path}' and method '${method}' has already been assigned. There can only be one handler per method per path. `
+        `A handler for the router path '${path}' and ${!method ? "wildcard method" : `method '${method}'`} has already been assigned. There can only be one handler per method per path. `
     );
 }
 

@@ -3,7 +3,7 @@
  * params, validated body (+ other), responses)
  */
 
-import { Mix, Prettify } from "./common.js";
+import { Mix, Prettify, UnionToIntersection } from "./common.js";
 import { LocalFunction, Locals } from "./locals.js";
 import {
     ParsedParams,
@@ -21,20 +21,32 @@ import {
     validatorsToRouteValidators,
     ValidatorsToValidated,
 } from "./validation.js";
+import { Request } from "./request.js";
+import { Response } from "./response.js";
+import { StatusCode } from "./statusCodes.js";
 
 export type Method = "get" | "post" | "put" | "patch" | "delete" | string;
 export type Methods = Method[];
 
 export type RouteHandler<
-    _M extends Methods,
-    _Context extends RouteContext,
-> = (data: { request: any; response: any }) => any;
+    M extends Methods | null,
+    Context extends RouteContext,
+> = (data: {
+    request: Request<Context, M>;
+    response: Response<StatusCode, unknown>;
+}) => Responses;
+
+// IDK
+export type GetRouteHandlerResponses<T extends RouteHandler<any, any>> =
+    Awaited<ReturnType<T>> extends Response<infer S, infer B>
+        ? Record<S, B>
+        : {};
 
 export type Responses = Record<number, unknown>;
 
 export type Route = {
     path: Path;
-    methods: Method[];
+    methods: Method[] | null;
     parsers: ParseParamFunctions<Path, ParsedParams>;
     validators: RouteValidators;
     middleware: Middleware[];
@@ -43,7 +55,7 @@ export type Route = {
 
 export type ChildRoute<
     P extends Path = Path,
-    M extends Methods = Methods,
+    M extends Methods | null = Methods | null,
     Params extends ParsedParams = ParsedParams,
     R extends Responses = Responses,
 > = {
@@ -153,7 +165,7 @@ export type Middleware =
 
 export type Handler = {
     path: Path;
-    method: Method;
+    method: Method | null;
     handler: RouteHandler<Method[], RouteContext>;
 };
 
@@ -220,33 +232,24 @@ export interface RouteGroupHandlers<Context extends RouteContext>
         path: P,
         method: M,
         handler: H
-    ): RouteGroupHandlers<
-        Prettify<
+    ): Prettify<
+        RouteGroupHandlers<
             AddRouteContextChildRoute<
                 Context,
                 ChildRoute<
-                    JoinPaths<Context["path"], P>,
+                    P,
                     [M],
                     Context["parsedParams"],
-                    Awaited<ReturnType<H>>
+                    Prettify<UnionToIntersection<ReturnType<H>>>
                 >
             >
         >
     >;
+
+    // routes(): Context["childRoutes"];
 }
 
 export type RouteGroup<_Context extends RouteContext> = {};
-
-// type A = ParseParamFunctionsToParsedParams<ParseParamFunctions<"/:a/:b", {}>>;
-// type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
-// type B2 = Partial<Prettify<ParseParamFunctions<B["path"], B["parsedParams"]>>>;
-// type C = RouteGroupUse<B>;
-// type D = ParseParamFunctions<B["path"], B["parsedParams"]>;
-// type E = B["parsedParams"];
-
-// const d: D = {
-//     d: (a) => a,
-// };
 
 export class RouteGroupBuilder<Context extends RouteContext>
     implements RouteGroupUse<Context>
@@ -283,13 +286,24 @@ export class RouteGroupBuilder<Context extends RouteContext>
     >(parsers: T) {
         this.#parsers = parsers;
 
-        return this;
+        return this as RouteGroupValidators<
+            Prettify<
+                AddRouteContextParsedParams<
+                    Context,
+                    ParseParamFunctionsToParsedParams<T>
+                >
+            >
+        >;
     }
 
     validate<T extends Validators>(validators: Partial<T>) {
         this.#validators = validators;
 
-        return this;
+        return this as RouteGroupMiddleware<
+            Prettify<
+                AddRouteContextValidators<Context, ValidatorsToValidated<T>>
+            >
+        >;
     }
 
     before<T extends LocalFunction>(handler: T) {
@@ -298,7 +312,9 @@ export class RouteGroupBuilder<Context extends RouteContext>
             handler: handler,
         });
 
-        return this;
+        return this as RouteGroupMiddleware<
+            Prettify<AddRouteContextLocals<Context, ReturnType<T>>>
+        >;
     }
 
     middleware(handler: MiddlewareFunction) {
@@ -324,7 +340,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
         this.#handlers.push({
             path: path,
             method: method,
-            handler: handler,
+            handler: handler as unknown as RouteHandler<Method[], RouteContext>,
         });
 
         return this;
@@ -352,7 +368,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
         for (const handler of this.#handlers) {
             routes.push({
                 path: joinPaths(this.#basePath, handler.path),
-                methods: [handler.method],
+                methods: handler.method === null ? null : [handler.method],
                 parsers: this.#parsers,
                 validators: validatorsToRouteValidators(this.#validators),
                 middleware: this.#middleware,
@@ -364,12 +380,42 @@ export class RouteGroupBuilder<Context extends RouteContext>
     }
 }
 
+export function routeGroup<
+    C extends RouteContext = RouteContext<"/", {}, {}, Validated, []>,
+    P extends Path = Path,
+>(path: P) {
+    return new RouteGroupBuilder(path) as RouteGroupUse<
+        RouteContext<
+            JoinPaths<C["path"], P>,
+            C["parsedParams"],
+            C["locals"],
+            C["validated"],
+            C["childRoutes"]
+        >
+    >;
+}
+
+// type A = ParseParamFunctionsToParsedParams<ParseParamFunctions<"/:a/:b", {}>>;
+type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
+// type B2 = Partial<Prettify<ParseParamFunctions<B["path"], B["parsedParams"]>>>;
+type C = RouteGroupUse<B>;
+// type D = ParseParamFunctions<B["path"], B["parsedParams"]>;
+// type E = B["parsedParams"];
+
+// const d: D = {
+//     d: (a) => a,
+// };
 // declare const c: C;
-// c.parse({
-//     d: (data) => parseInt(data),
-// })
-//     .group(new RouteGroupBuilder<B>("/abc").)
-//     .on("/abc", "post", () => {
-//         return "anc";
+// const d = c
+//     .parse({
+//         d: (data) => parseInt(data),
+//     })
+//     .on("/abc", "post", ({ request, response }) => {
+//         if (request.headers["A"] === "a")
+//             return response.status(200).text("abc");
+//         // return response.status(400).json({ a: true });
+//         return response.status(400).json({ a: true });
 //     });
+
+// const das = d.routes()[0].parsedParams
 

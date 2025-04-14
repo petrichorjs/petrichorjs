@@ -1,0 +1,91 @@
+import { HttpError } from "./httpError.js";
+import { Router, RouterResponseType } from "./router.js";
+import { StatusCode, statusCodes } from "./statusCodes.js";
+import { Request } from "./request.js";
+import { Response } from "./response.js";
+import { Method } from "./routeGroup.js";
+import { Path } from "./path.js";
+import { BodyParser } from "./bodyParser.js";
+
+export abstract class Server {
+    protected router: Router;
+
+    constructor(router: Router) {
+        this.router = router;
+    }
+
+    listen(port: number): never {
+        this.startServer(port);
+    }
+
+    protected createNotFoundError(): HttpError {
+        return new HttpError(statusCodes.NotFound, "Not found");
+    }
+
+    protected createMethodNotAllowedError(allowedMethods: string[]): HttpError {
+        return new HttpError(
+            statusCodes.MethodNotAllowed,
+            "Method not allowed",
+            {
+                Allow: allowedMethods.join(", "),
+            }
+        );
+    }
+
+    protected async handleRequest(
+        bodyParser: BodyParser,
+        method: Method,
+        url: URL,
+        headers: Record<string, string>,
+        cookies: Record<string, string>,
+        response: Response<StatusCode, unknown>
+    ): Promise<void> {
+        const handler = this.router.findRoute(method, url.pathname as Path);
+
+        try {
+            if (handler.type === RouterResponseType.NotFound)
+                throw this.createNotFoundError();
+            else if (
+                handler.type === RouterResponseType.MatchingPathInvalidMethod
+            ) {
+                response.header("Allow", handler.validMethods.join(", "));
+                throw this.createMethodNotAllowedError(handler.validMethods);
+            }
+
+            // TODO: update when i add validation
+            const request = new Request(
+                bodyParser,
+                handler.params,
+                handler.route,
+                method,
+                url,
+                headers,
+                {},
+                cookies,
+                {}
+            );
+
+            // TODO: Run middleware and local functions!
+            // Handler should not return anything, other than for type inference.
+            handler.route.handler({
+                request: request,
+                response: response,
+            });
+        } catch (err) {
+            if (err instanceof HttpError) {
+                response
+                    .headers(err.getHeaders())
+                    .status(err.status)
+                    .json(err.toJsonResponse());
+                return;
+            }
+
+            response
+                .status(statusCodes.InternalServerError)
+                .json({ message: "Internal server error" });
+        }
+    }
+
+    abstract startServer(port: number): never;
+}
+
