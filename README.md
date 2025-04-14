@@ -2,17 +2,22 @@
 
 The simple type safe web server framework written in TypeScript.
 
-## Installation
-
-> [!CAUTION]
-> Petrichor is still in early development and **will** contain bugs!
-
-Petrichor can be installed with npm.
-
-```
-npm i petrichor
-```
-
 ## Documentation
 
+> [!IMPORTANT]
+> The documentation is not up to date.
+
 The docs can be found [here](https://petrichorjs.pages.dev/).
+
+## Todo
+
+-   [x] Simple server
+-   [x] Simple routing
+-   [x] Param validation
+-   [ ] Body parsing
+-   [ ] Validation (Custom validation library? Cannot find any good ones.)
+-   [ ] Middleware
+-   [ ] Locals
+-   [ ] Docs
+-   [ ] Open api middleware/plugin using scalar?
+
