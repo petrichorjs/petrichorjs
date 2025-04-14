@@ -64,9 +64,10 @@ export function joinPaths<A extends Path, B extends Path>(
     left: A,
     right: B
 ): JoinPaths<A, B> {
-    return (left + right) as JoinPaths<A, B>;
+    return (((left as string) === "/" ? "" : left) + right) as JoinPaths<A, B>;
 }
 
 export function removeFirstSlug(path: Path): Path {
     return `/${path.split("/").slice(2).join("/")}`;
 }
+

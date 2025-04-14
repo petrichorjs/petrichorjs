@@ -339,7 +339,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
     ) {
         this.#handlers.push({
             path: path,
-            method: method,
+            method: method.toLowerCase(),
             handler: handler as unknown as RouteHandler<Method[], RouteContext>,
         });
 
@@ -366,6 +366,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
         }
 
         for (const handler of this.#handlers) {
+            console.log(joinPaths(this.#basePath, handler.path), this.#basePath, handler.path);
             routes.push({
                 path: joinPaths(this.#basePath, handler.path),
                 methods: handler.method === null ? null : [handler.method],
@@ -375,6 +376,8 @@ export class RouteGroupBuilder<Context extends RouteContext>
                 handler: handler.handler,
             });
         }
+
+        console.log(routes);
 
         return routes;
     }
@@ -396,9 +399,9 @@ export function routeGroup<
 }
 
 // type A = ParseParamFunctionsToParsedParams<ParseParamFunctions<"/:a/:b", {}>>;
-type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
+// type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
 // type B2 = Partial<Prettify<ParseParamFunctions<B["path"], B["parsedParams"]>>>;
-type C = RouteGroupUse<B>;
+// type C = RouteGroupUse<B>;
 // type D = ParseParamFunctions<B["path"], B["parsedParams"]>;
 // type E = B["parsedParams"];
 

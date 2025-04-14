@@ -1,6 +1,6 @@
 import { ParsedParams } from "./parse.js";
 import { Path } from "./path.js";
-import { Handler, Method, Route } from "./routeGroup.js";
+import { Method, Route, RouteContext, RouteGroup } from "./routeGroup.js";
 
 export enum RouterResponseType {
     Found,
@@ -31,11 +31,15 @@ export type RouterNotFoundResponse = {
 export type SplitPath = string[];
 
 export function splitPath(path: Path): SplitPath {
+    if (path === "/") return [];
+
     return path.split("/").slice(1);
 }
 
 export abstract class Router {
-    abstract addRoute(route: Route): void;
+    abstract addRoute(route: RouteGroup<RouteContext>): void;
+
+    /** @internal */
     abstract findRoute(method: Method, path: Path): RouterResponse;
 }
 

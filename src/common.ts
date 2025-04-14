@@ -28,3 +28,13 @@ export type UnionToIntersection<U> = (
     ? I
     : never;
 
+/** @see {@link https://stackoverflow.com/a/1584377} */
+export function merge<T>(a: T[], b: T[], predicate = (a: T, b: T) => a === b) {
+    const c = [...a]; // copy to avoid side effects
+
+    b.forEach((bItem) =>
+        c.some((cItem) => predicate(bItem, cItem)) ? null : c.push(bItem)
+    );
+    return c;
+}
+

@@ -1,10 +1,17 @@
+import { merge } from "./common.js";
 import {
     ParseParamFunction,
     unparseableParam,
     UnparseableParamError,
 } from "./parse.js";
 import { Path, removeFirstSlug } from "./path.js";
-import { Handler, Method, Route } from "./routeGroup.js";
+import {
+    Method,
+    Route,
+    RouteContext,
+    RouteGroup,
+    RouteGroupBuilder,
+} from "./routeGroup.js";
 import {
     SplitPath,
     RouterFoundResponse,
@@ -248,6 +255,19 @@ export class TrieRouterRouteGroup {
             case RouterResponseType.Found:
                 return response;
             case RouterResponseType.MatchingPathInvalidMethod:
+                if (
+                    oldRepsonse.type ===
+                    RouterResponseType.MatchingPathInvalidMethod
+                ) {
+                    return {
+                        type: RouterResponseType.MatchingPathInvalidMethod,
+                        validMethods: merge(
+                            oldRepsonse.validMethods,
+                            response.validMethods
+                        ),
+                    };
+                }
+
                 return response;
             default:
                 return oldRepsonse;
@@ -581,10 +601,15 @@ export class TrieRouterRouteGroup {
 export class TrieRouter extends Router {
     #baseRouteGruop = new TrieRouterRouteGroup();
 
-    override addRoute(route: Route): void {
-        this.#baseRouteGruop.addRoute(route);
+    override addRoute(route: RouteGroup<RouteContext>): void {
+        const routes = (route as RouteGroupBuilder<RouteContext>).getRoutes();
+
+        for (const route of routes) {
+            this.#baseRouteGruop.addRoute(route);
+        }
     }
 
+    /** @internal */
     override findRoute(method: Method, path: Path): RouterResponse {
         return this.#baseRouteGruop.findMatchingRoute(method, splitPath(path));
     }

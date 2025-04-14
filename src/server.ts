@@ -7,15 +7,22 @@ import { Method } from "./routeGroup.js";
 import { Path } from "./path.js";
 import { BodyParser } from "./bodyParser.js";
 
+export type OnServerStartCallback = () => void;
+
 export abstract class Server {
     protected router: Router;
+    protected port: number | undefined;
+    protected host: string | undefined;
 
     constructor(router: Router) {
         this.router = router;
     }
 
-    listen(port: number): never {
-        this.startServer(port);
+    listen(port: number, host: string, callback?: OnServerStartCallback): void {
+        this.port = port;
+        this.host = host;
+
+        this.startServer(port, host, callback);
     }
 
     protected createNotFoundError(): HttpError {
@@ -27,7 +34,9 @@ export abstract class Server {
             statusCodes.MethodNotAllowed,
             "Method not allowed",
             {
-                Allow: allowedMethods.join(", "),
+                Allow: allowedMethods
+                    .map((method) => method.toUpperCase())
+                    .join(", "),
             }
         );
     }
@@ -86,6 +95,10 @@ export abstract class Server {
         }
     }
 
-    abstract startServer(port: number): never;
+    protected abstract startServer(
+        port: number,
+        host: string,
+        callback?: OnServerStartCallback
+    ): void;
 }
 
