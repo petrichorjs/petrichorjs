@@ -1,3 +1,4 @@
+import { OpenApiDocumentationOptions } from "./openApi.js";
 import { ParsedParams } from "./parse.js";
 import { Path } from "./path.js";
 import { Method, Route, RouteContext, RouteGroup } from "./routeGroup.js";
@@ -41,6 +42,8 @@ export abstract class Router {
 
     /** @internal */
     abstract findRoute(method: Method, path: Path): RouterResponse;
+
+    abstract getOpenApiDocs(options: OpenApiDocumentationOptions): string;
 }
 
 export class RouterError extends Error {

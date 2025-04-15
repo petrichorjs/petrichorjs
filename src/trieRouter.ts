@@ -20,6 +20,8 @@ import {
 } from "./router.js";
 import { Value } from "@sinclair/typebox/value";
 import { AssertionError } from "node:assert";
+import yaml from "yaml";
+import { generateOpenApiDocs, OpenApiDocumentationOptions } from "./openApi.js";
 
 export type DynamicParsedGroup = {
     paramName: string;
@@ -276,7 +278,8 @@ export class TrieRouterRouteGroup {
     #findDynamicMatchingParsedGroup(
         method: Method,
         path: SplitPath,
-        groups: DynamicParsedGroup[]
+        groups: DynamicParsedGroup[],
+        isOptional: boolean
     ): RouterResponse {
         let matchingRoute: RouterResponse = {
             type: RouterResponseType.NotFound,
@@ -284,12 +287,14 @@ export class TrieRouterRouteGroup {
 
         for (const { paramName, parser, group } of groups) {
             let parsedParam: unknown;
-            try {
-                parsedParam = Value.Parse(parser.validator, path[0]);
-            } catch (err) {
-                if (err instanceof AssertionError) continue;
+            if (!isOptional || path[0]) {
+                try {
+                    parsedParam = Value.Parse(parser.validator, path[0]);
+                } catch (err) {
+                    if (err instanceof AssertionError) continue;
 
-                throw err;
+                    throw err;
+                }
             }
 
             matchingRoute = this.#keepResponseOfHigherPriority(
@@ -309,13 +314,16 @@ export class TrieRouterRouteGroup {
     #findDynamicMatchingGroup(
         method: Method,
         path: SplitPath,
-        groups: DynamicGroup[]
+        groups: DynamicGroup[],
+        isOptional: boolean
     ): RouterResponse {
         let matchingRoute: RouterResponse = {
             type: RouterResponseType.NotFound,
         };
 
         for (const { paramName, group } of groups) {
+            if (!isOptional && !path[0]) continue;
+
             matchingRoute = this.#keepResponseOfHigherPriority(
                 matchingRoute,
                 group.findMatchingRoute(method, path.slice(1))
@@ -333,7 +341,8 @@ export class TrieRouterRouteGroup {
     #findWildcardMatchingParsedGroup(
         method: Method,
         path: SplitPath,
-        groups: WildcardParsedGroup[]
+        groups: WildcardParsedGroup[],
+        isOptional: boolean
     ) {
         let matchingRoute: RouterResponse = {
             type: RouterResponseType.NotFound,
@@ -341,12 +350,14 @@ export class TrieRouterRouteGroup {
 
         for (const { parser, group } of groups) {
             let parsedParam: unknown;
-            try {
-                parsedParam = Value.Parse(parser.validator, path[0]);
-            } catch (err) {
-                if (err instanceof AssertionError) continue;
+            if (!isOptional || path[0]) {
+                try {
+                    parsedParam = Value.Parse(parser.validator, path[0]);
+                } catch (err) {
+                    if (err instanceof AssertionError) continue;
 
-                throw err;
+                    throw err;
+                }
             }
 
             matchingRoute = this.#keepResponseOfHigherPriority(
@@ -500,7 +511,8 @@ export class TrieRouterRouteGroup {
         return this.#findDynamicMatchingParsedGroup(
             method,
             path,
-            this.#dynamicParsedGroups
+            this.#dynamicParsedGroups,
+            false
         );
     }
 
@@ -508,7 +520,8 @@ export class TrieRouterRouteGroup {
         return this.#findDynamicMatchingGroup(
             method,
             path,
-            this.#dynamicGroups
+            this.#dynamicGroups,
+            false
         );
     }
 
@@ -519,7 +532,8 @@ export class TrieRouterRouteGroup {
         return this.#findDynamicMatchingParsedGroup(
             method,
             path,
-            this.#dynamicOptionalParsedGroups
+            this.#dynamicOptionalParsedGroups,
+            true
         );
     }
 
@@ -530,7 +544,8 @@ export class TrieRouterRouteGroup {
         return this.#findDynamicMatchingGroup(
             method,
             path,
-            this.#dynamicOptionalGroups
+            this.#dynamicOptionalGroups,
+            true
         );
     }
 
@@ -541,7 +556,8 @@ export class TrieRouterRouteGroup {
         return this.#findWildcardMatchingParsedGroup(
             method,
             path,
-            this.#wildcardParsedGroups
+            this.#wildcardParsedGroups,
+            false
         );
     }
 
@@ -549,7 +565,8 @@ export class TrieRouterRouteGroup {
         method: Method,
         path: SplitPath
     ): RouterResponse {
-        if (!this.#wildcardGroup) return { type: RouterResponseType.NotFound };
+        if (!this.#wildcardGroup || !path[0])
+            return { type: RouterResponseType.NotFound };
 
         const matchingRoute = this.#wildcardGroup.group.findMatchingRoute(
             method,
@@ -571,7 +588,8 @@ export class TrieRouterRouteGroup {
         return this.#findWildcardMatchingParsedGroup(
             method,
             path,
-            this.#wildcardOptionalParsedGroups
+            this.#wildcardOptionalParsedGroups,
+            true
         );
     }
 
@@ -599,18 +617,24 @@ export class TrieRouterRouteGroup {
 
 export class TrieRouter extends Router {
     #baseRouteGruop = new TrieRouterRouteGroup();
+    #routes: Route[] = [];
 
     override addRoute(route: RouteGroup<RouteContext>): void {
         const routes = (route as RouteGroupBuilder<RouteContext>).getRoutes();
 
         for (const route of routes) {
             this.#baseRouteGruop.addRoute(route);
+            this.#routes.push(route);
         }
     }
 
     /** @internal */
     override findRoute(method: Method, path: Path): RouterResponse {
         return this.#baseRouteGruop.findMatchingRoute(method, splitPath(path));
+    }
+
+    override getOpenApiDocs(options: OpenApiDocumentationOptions): string {
+        return yaml.stringify(generateOpenApiDocs(options, this.#routes));
     }
 }
 

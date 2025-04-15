@@ -25,21 +25,31 @@ import {
 import { Request } from "./request.js";
 import { Response } from "./response.js";
 import { StatusCode } from "./statusCodes.js";
-import { Type } from "@sinclair/typebox";
+import { Static, TSchema, Type } from "@sinclair/typebox";
 
 export type Method = "get" | "post" | "put" | "patch" | "delete" | string;
 export type Methods = Method[];
 
+export type HandlerReturnTypes = Record<number, TSchema>;
+type ResponseTypeToStatic<T extends HandlerReturnTypes> = {
+    [K in keyof T]: T[K] extends TSchema ? Record<K, Static<T[K]>> : never;
+}[keyof T];
+
 export type RouteHandler<
     M extends Methods | null,
     Context extends RouteContext,
+    R extends HandlerReturnTypes,
 > = (data: {
     request: Request<Context, M>;
     response: Response<StatusCode, unknown>;
-}) => Promise<Responses> | Responses;
+}) =>
+    | Promise<Prettify<ResponseTypeToStatic<R>>>
+    | Prettify<ResponseTypeToStatic<R>>;
 
 // IDK
-export type GetRouteHandlerResponses<T extends RouteHandler<any, any>> =
+export type GetRouteHandlerResponses<
+    T extends RouteHandler<any, any, HandlerReturnTypes>,
+> =
     Awaited<ReturnType<T>> extends Response<infer S, infer B>
         ? Record<S, B>
         : {};
@@ -47,12 +57,31 @@ export type GetRouteHandlerResponses<T extends RouteHandler<any, any>> =
 export type Responses = Record<number, unknown>;
 
 export type Route = {
+    documentation?: RouteDocumentation<Record<number, TSchema>> | undefined;
     path: Path;
     methods: Method[] | null;
     parsers: ParamParsersDocumented<Path, ParsedParams>;
     validators: RouteValidators;
     middleware: Middleware[];
-    handler: RouteHandler<Methods, RouteContext>;
+    handler: RouteHandler<Methods, RouteContext, HandlerReturnTypes>;
+};
+
+export type ResponseDocumentation<T extends TSchema> = {
+    description?: string;
+    contentType?: string;
+    schema: T;
+};
+
+export type RouteDocumentation<T extends Record<number, TSchema>> = {
+    tags?: string[];
+    summary?: string;
+    description?: string;
+    responses: {
+        [K in keyof T]: T[K] extends TSchema
+            ? ResponseDocumentation<T[K]>
+            : never;
+    };
+    operationId?: string;
 };
 
 export type ChildRoute<
@@ -168,7 +197,8 @@ export type Middleware =
 export type Handler = {
     path: Path;
     method: Method | null;
-    handler: RouteHandler<Method[], RouteContext>;
+    handler: RouteHandler<Method[], RouteContext, HandlerReturnTypes>;
+    documentation?: RouteDocumentation<Record<number, TSchema>> | undefined;
 };
 
 export interface RouteGroupUse<Context extends RouteContext>
@@ -225,10 +255,36 @@ export interface RouteGroupGroups<Context extends RouteContext>
 
 export interface RouteGroupHandlers<Context extends RouteContext>
     extends RouteGroup<Context> {
-    on<P extends Path, M extends Method, H extends RouteHandler<[M], Context>>(
+    on<
+        P extends Path,
+        M extends Method,
+        H extends RouteHandler<[M], Context, NoInfer<R>>,
+        R extends HandlerReturnTypes,
+    >(
         path: P,
         method: M,
-        docs: any,
+        docs: RouteDocumentation<R>,
+        handler: H
+    ): Prettify<
+        RouteGroupHandlers<
+            AddRouteContextChildRoute<
+                Context,
+                ChildRoute<
+                    P,
+                    [M],
+                    Context["parsedParams"],
+                    Prettify<UnionToIntersection<ReturnType<H>>>
+                >
+            >
+        >
+    >;
+    on<
+        P extends Path,
+        M extends Method,
+        H extends RouteHandler<[M], Context, HandlerReturnTypes>,
+    >(
+        path: P,
+        method: M,
         handler: H
     ): Prettify<
         RouteGroupHandlers<
@@ -284,13 +340,22 @@ export class RouteGroupBuilder<Context extends RouteContext>
     >(parsers: T) {
         this.#parsers = parsers;
 
-        return this;
+        return this as RouteGroupValidators<
+            Prettify<
+                AddRouteContextParsedParams<
+                    Context,
+                    ParamParsersToParsedParams<T>
+                >
+            >
+        >;
     }
 
     validate<T extends Validators>(validators: Partial<T>) {
         this.#validators = validators;
 
-        return this;
+        return this as RouteGroupMiddleware<
+            Prettify<AddRouteContextValidators<Context, T>>
+        >;
     }
 
     before<T extends LocalFunction>(handler: T) {
@@ -319,15 +384,30 @@ export class RouteGroupBuilder<Context extends RouteContext>
         return this;
     }
 
-    on<P extends Path, M extends Method, H extends RouteHandler<[M], Context>>(
+    on<
+        P extends Path,
+        M extends Method,
+        H extends RouteHandler<[M], Context, NoInfer<HandlerReturnTypes>>,
+        R extends HandlerReturnTypes,
+    >(
         path: P,
         method: M,
-        handler: H
+        documentation: RouteDocumentation<R> | H,
+        handler?: H
     ) {
         this.#handlers.push({
             path: path,
             method: method.toLowerCase(),
-            handler: handler as unknown as RouteHandler<Method[], RouteContext>,
+            documentation: !handler
+                ? undefined
+                : (documentation as RouteDocumentation<R>),
+            handler: (!handler
+                ? documentation
+                : handler) as unknown as RouteHandler<
+                Method[],
+                RouteContext,
+                HandlerReturnTypes
+            >,
         });
 
         return this;
@@ -365,6 +445,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
                 validators: validatorsToRouteValidators(this.#validators),
                 middleware: this.#middleware,
                 handler: handler.handler,
+                documentation: handler.documentation,
             });
         }
 
@@ -393,16 +474,40 @@ type B = RouteContext<"/a/:d/:c?", {}, {}, Validated, []>;
 type C = RouteGroupUse<B>;
 const numberParamParser = paramParser(Type.Integer({ minimum: 0 }));
 declare const c: C;
-const d = c
-    .parse({
-        d: numberParamParser("abc"),
-    })
-    .validate({ body: Type.String() })
-    .on("/abc", "post", "", async ({ request, response }) => {
-        const b = await request.body();
-        if (request.headers["A"] === "a")
-            return response.status(200).text("abc");
-        // return response.status(400).json({ a: true });
-        return response.status(400).json({ a: true });
-    });
+
+if (false) {
+    //@ts-ignore
+    const _d = c
+        .parse({
+            d: numberParamParser("abc"),
+        })
+        .validate({ body: Type.String() })
+        .on(
+            "/abc",
+            "post",
+            {
+                summary: "abc",
+                responses: {
+                    200: {
+                        schema: Type.String(),
+                    },
+                    201: {
+                        schema: Type.Object({
+                            roblox: Type.Literal("For life"),
+                        }),
+                    },
+                },
+            },
+            async ({ request, response }) => {
+                // const b = await request.body();
+                if (request.headers["A"] === "a")
+                    return response.status(201).json({
+                        roblox: "For life",
+                    });
+                // return response.status(400).json({ a: true });
+                // return response.status(400).json({ a: true });
+                return response.status(200).text("abc");
+            }
+        );
+}
 

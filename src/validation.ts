@@ -1,10 +1,4 @@
-import {
-    Intersect,
-    Static,
-    TIntersect,
-    TObject,
-    TSchema,
-} from "@sinclair/typebox";
+import { Static, TIntersect, TObject, TSchema } from "@sinclair/typebox";
 import { JoinOrChoose } from "./common.js";
 
 export type Validators = {

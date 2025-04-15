@@ -1,5 +1,10 @@
+import { Prettify } from "./common.js";
 import { CookieOptions } from "./cookies.js";
 import { StatusCode, statusCodes } from "./statusCodes.js";
+
+type ResponseType<S extends StatusCode, B extends unknown> = Prettify<
+    Record<S, B>
+>;
 
 export class Response<S extends StatusCode, B extends unknown> {
     /** @internal */
@@ -53,25 +58,25 @@ export class Response<S extends StatusCode, B extends unknown> {
         return this as unknown as Response<T, B>;
     }
 
-    text(body: string): Record<S, string> {
+    text(body: string): ResponseType<S, string> {
         this.sendingBody = body;
         this.header("Content-Type", "text/plain");
 
-        return {} as Record<S, string>;
+        return {} as ResponseType<S, string>;
     }
 
-    html(body: string): Record<S, string> {
+    html(body: string): ResponseType<S, string> {
         this.sendingBody = body;
         this.header("Content-Type", "text/html");
 
-        return {} as Record<S, string>;
+        return {} as ResponseType<S, string>;
     }
 
-    json<T>(body: T): Record<S, T> {
+    json<T>(body: T): ResponseType<S, T> {
         this.sendingBody = JSON.stringify(body);
         this.header("Content-Type", "application/json");
 
-        return {} as Record<S, T>;
+        return {} as ResponseType<S, T>;
     }
 }
 
