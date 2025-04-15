@@ -15,8 +15,8 @@ The docs can be found [here](https://petrichorjs.pages.dev/).
 -   [x] Simple routing
 -   [x] Param validation
 -   [ ] Custom validation for only one handler
--   [ ] Body parsing
--   [ ] Server configuraton options
+-   [x] Body parsing
+-   [x] Server configuraton options
 -   [ ] Validation (Custom validation library? Cannot find any good ones.)
 -   [ ] Client types (end to end type safety)
 -   [ ] Middleware

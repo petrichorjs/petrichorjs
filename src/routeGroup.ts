@@ -6,9 +6,10 @@
 import { Mix, Prettify, UnionToIntersection } from "./common.js";
 import { LocalFunction, Locals } from "./locals.js";
 import {
+    paramParser,
+    ParamParsersDocumented,
+    ParamParsersToParsedParams,
     ParsedParams,
-    ParseParamFunctions,
-    ParseParamFunctionsToParsedParams,
 } from "./parse.js";
 import { joinPaths, JoinPaths, Path } from "./path.js";
 import { Plugin, PluginBuilder, PluginContext } from "./plugin.js";
@@ -24,6 +25,7 @@ import {
 import { Request } from "./request.js";
 import { Response } from "./response.js";
 import { StatusCode } from "./statusCodes.js";
+import { Type } from "@sinclair/typebox";
 
 export type Method = "get" | "post" | "put" | "patch" | "delete" | string;
 export type Methods = Method[];
@@ -47,7 +49,7 @@ export type Responses = Record<number, unknown>;
 export type Route = {
     path: Path;
     methods: Method[] | null;
-    parsers: ParseParamFunctions<Path, ParsedParams>;
+    parsers: ParamParsersDocumented<Path, ParsedParams>;
     validators: RouteValidators;
     middleware: Middleware[];
     handler: RouteHandler<Methods, RouteContext>;
@@ -183,17 +185,14 @@ export interface RouteGroupParser<Context extends RouteContext>
     parse<
         T extends Prettify<
             Partial<
-                ParseParamFunctions<Context["path"], Context["parsedParams"]>
+                ParamParsersDocumented<Context["path"], Context["parsedParams"]>
             >
         >,
     >(
         parsers: T
     ): RouteGroupValidators<
         Prettify<
-            AddRouteContextParsedParams<
-                Context,
-                ParseParamFunctionsToParsedParams<T>
-            >
+            AddRouteContextParsedParams<Context, ParamParsersToParsedParams<T>>
         >
     >;
 }
@@ -231,6 +230,7 @@ export interface RouteGroupHandlers<Context extends RouteContext>
     on<P extends Path, M extends Method, H extends RouteHandler<[M], Context>>(
         path: P,
         method: M,
+        docs: any,
         handler: H
     ): Prettify<
         RouteGroupHandlers<
@@ -257,7 +257,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
     #basePath: Path;
 
     #plugins: PluginBuilder<PluginContext>[] = [];
-    #parsers: ParseParamFunctions<Path, {}> = {};
+    #parsers: ParamParsersDocumented<Path, {}> = {};
     #validators: Partial<Validators> = {};
     #middleware: Middleware[] = [];
     #groups: RouteGroupBuilder<RouteContext>[] = [];
@@ -280,20 +280,13 @@ export class RouteGroupBuilder<Context extends RouteContext>
     parse<
         T extends Prettify<
             Partial<
-                ParseParamFunctions<Context["path"], Context["parsedParams"]>
+                ParamParsersDocumented<Context["path"], Context["parsedParams"]>
             >
         >,
     >(parsers: T) {
         this.#parsers = parsers;
 
-        return this as RouteGroupValidators<
-            Prettify<
-                AddRouteContextParsedParams<
-                    Context,
-                    ParseParamFunctionsToParsedParams<T>
-                >
-            >
-        >;
+        return this;
     }
 
     validate<T extends Validators>(validators: Partial<T>) {
@@ -402,27 +395,18 @@ export function routeGroup<
     >;
 }
 
-// type A = ParseParamFunctionsToParsedParams<ParseParamFunctions<"/:a/:b", {}>>;
-// type B = RouteContext<"/a/:d", {}, {}, Validated, []>;
-// type B2 = Partial<Prettify<ParseParamFunctions<B["path"], B["parsedParams"]>>>;
-// type C = RouteGroupUse<B>;
-// type D = ParseParamFunctions<B["path"], B["parsedParams"]>;
-// type E = B["parsedParams"];
-
-// const d: D = {
-//     d: (a) => a,
-// };
-// declare const c: C;
-// const d = c
-//     .parse({
-//         d: (data) => parseInt(data),
-//     })
-//     .on("/abc", "post", ({ request, response }) => {
-//         if (request.headers["A"] === "a")
-//             return response.status(200).text("abc");
-//         // return response.status(400).json({ a: true });
-//         return response.status(400).json({ a: true });
-//     });
-
-// const das = d.routes()[0].parsedParams
+type B = RouteContext<"/a/:d/:c?", {}, {}, Validated, []>;
+type C = RouteGroupUse<B>;
+const numberParamParser = paramParser(Type.Integer({ minimum: 0 }));
+declare const c: C;
+const d = c
+    .parse({
+        d: numberParamParser("abc"),
+    })
+    .on("/abc", "post", "", ({ request, response }) => {
+        if (request.headers["A"] === "a")
+            return response.status(200).text("abc");
+        // return response.status(400).json({ a: true });
+        return response.status(400).json({ a: true });
+    });
 

@@ -1,9 +1,6 @@
+import { TSchema } from "@sinclair/typebox";
 import { merge } from "./common.js";
-import {
-    ParseParamFunction,
-    unparseableParam,
-    UnparseableParamError,
-} from "./parse.js";
+import { ParamParserDocumented } from "./parse.js";
 import { Path, removeFirstSlug } from "./path.js";
 import {
     Method,
@@ -21,10 +18,12 @@ import {
     splitPath,
     methodAlreadyAssignedRouterError,
 } from "./router.js";
+import { Value } from "@sinclair/typebox/value";
+import { AssertionError } from "node:assert";
 
 export type DynamicParsedGroup = {
     paramName: string;
-    parser: ParseParamFunction<unknown>;
+    parser: ParamParserDocumented<TSchema>;
     group: TrieRouterRouteGroup;
 };
 
@@ -34,7 +33,7 @@ export type DynamicGroup = {
 };
 
 export type WildcardParsedGroup = {
-    parser: ParseParamFunction<unknown>;
+    parser: ParamParserDocumented<TSchema>;
     group: TrieRouterRouteGroup;
 };
 
@@ -66,7 +65,7 @@ export class TrieRouterRouteGroup {
         route: Route,
         paramName: string,
         isOptional: boolean,
-        parser: ParseParamFunction<unknown> | undefined
+        parser: ParamParserDocumented<TSchema> | undefined
     ): void {
         if (parser) {
             const groupArray = isOptional
@@ -116,7 +115,7 @@ export class TrieRouterRouteGroup {
 
     #addParsedWildcardRoute(
         route: Route,
-        parser: ParseParamFunction<unknown>,
+        parser: ParamParserDocumented<TSchema>,
         isOptional: boolean
     ): void {
         const groupArray = isOptional
@@ -173,7 +172,7 @@ export class TrieRouterRouteGroup {
 
             //@ts-ignore
             const parser = route.parsers[paramName] as
-                | ParseParamFunction<unknown>
+                | ParamParserDocumented<TSchema>
                 | undefined;
 
             this.#addDynamicRoute(route, paramName, isOptional, parser);
@@ -186,7 +185,7 @@ export class TrieRouterRouteGroup {
 
             //@ts-ignore
             const parser = route.parsers["wildcard"] as
-                | ParseParamFunction<unknown>
+                | ParamParserDocumented<TSchema>
                 | undefined;
 
             if (!parser && isOptional) {
@@ -286,9 +285,9 @@ export class TrieRouterRouteGroup {
         for (const { paramName, parser, group } of groups) {
             let parsedParam: unknown;
             try {
-                parsedParam = parser(path[0], unparseableParam);
+                parsedParam = Value.Parse(parser.validator, path[0]);
             } catch (err) {
-                if (err instanceof UnparseableParamError) continue;
+                if (err instanceof AssertionError) continue;
 
                 throw err;
             }
@@ -343,9 +342,9 @@ export class TrieRouterRouteGroup {
         for (const { parser, group } of groups) {
             let parsedParam: unknown;
             try {
-                parsedParam = parser(path[0], unparseableParam);
+                parsedParam = Value.Parse(parser.validator, path[0]);
             } catch (err) {
-                if (err instanceof UnparseableParamError) continue;
+                if (err instanceof AssertionError) continue;
 
                 throw err;
             }
