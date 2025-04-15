@@ -15,7 +15,7 @@ import { joinPaths, JoinPaths, Path } from "./path.js";
 import { Plugin, PluginBuilder, PluginContext } from "./plugin.js";
 import {
     joinRouteValidators,
-    JoinValidators,
+    JoinValidated,
     RouteValidators,
     Validated,
     Validators,
@@ -95,12 +95,12 @@ export type AddRouteContextParsedParams<
 
 export type AddRouteContextValidators<
     Context extends RouteContext,
-    V extends Validated,
+    V extends Partial<Validators>,
 > = RouteContext<
     Context["path"],
     Context["parsedParams"],
     Context["locals"],
-    JoinValidators<Context["validated"], V>,
+    JoinValidated<ValidatorsToValidated<V>, Context["validated"]>,
     Context["childRoutes"]
 >;
 
@@ -122,7 +122,7 @@ export type AddRouteContextPlugin<
     Context["path"],
     Context["parsedParams"],
     Mix<Omit<Context["locals"], keyof P["locals"]> & P["locals"]>,
-    JoinValidators<Context["validated"], P["validated"]>,
+    JoinValidated<Context["validated"], P["validated"]>,
     Context["childRoutes"]
 >;
 
@@ -199,11 +199,9 @@ export interface RouteGroupParser<Context extends RouteContext>
 
 export interface RouteGroupValidators<Context extends RouteContext>
     extends RouteGroupMiddleware<Context> {
-    validate<T extends Validators>(
-        validators: Partial<T>
-    ): RouteGroupMiddleware<
-        Prettify<AddRouteContextValidators<Context, ValidatorsToValidated<T>>>
-    >;
+    validate<T extends Partial<Validators>>(
+        validators: T
+    ): RouteGroupMiddleware<Prettify<AddRouteContextValidators<Context, T>>>;
 }
 
 export interface RouteGroupMiddleware<Context extends RouteContext>
@@ -292,11 +290,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
     validate<T extends Validators>(validators: Partial<T>) {
         this.#validators = validators;
 
-        return this as RouteGroupMiddleware<
-            Prettify<
-                AddRouteContextValidators<Context, ValidatorsToValidated<T>>
-            >
-        >;
+        return this;
     }
 
     before<T extends LocalFunction>(handler: T) {
@@ -381,7 +375,7 @@ export class RouteGroupBuilder<Context extends RouteContext>
 }
 
 export function routeGroup<
-    C extends RouteContext = RouteContext<"/", {}, {}, Validated, []>,
+    C extends RouteContext = RouteContext<"/", {}, {}, RouteValidators, []>,
     P extends Path = Path,
 >(path: P) {
     return new RouteGroupBuilder(path) as RouteGroupUse<
@@ -403,7 +397,9 @@ const d = c
     .parse({
         d: numberParamParser("abc"),
     })
-    .on("/abc", "post", "", ({ request, response }) => {
+    .validate({ body: Type.String() })
+    .on("/abc", "post", "", async ({ request, response }) => {
+        const b = await request.body();
         if (request.headers["A"] === "a")
             return response.status(200).text("abc");
         // return response.status(400).json({ a: true });
